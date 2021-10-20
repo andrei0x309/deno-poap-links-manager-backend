@@ -235,7 +235,6 @@ async function handleCanClaimLinks(request: Request) {
   if (isOptHead instanceof Response) return isOptHead;
   const data = await request.json();
   const claimDate = data.claimDate;
-  console.log(claimDate);
 
   if (!claimDate) {
     return corsJSON({ error: "Claim date string not found" }, { status: 401 });
