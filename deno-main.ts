@@ -336,7 +336,7 @@ async function handleGetPastEvents(request: Request) {
   const isOptHead = await handleOptHead(request);
   if (isOptHead instanceof Response) return isOptHead;
 
-  let select = await supabase.from("past-events").select('*');
+  let select = await supabase.from("past-events").select('*').order('created_at', { ascending: true });
   if (select.error) {
     return corsJSON({ error: select.error }, { status: 500 });
   }
