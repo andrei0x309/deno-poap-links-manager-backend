@@ -358,5 +358,5 @@ async function handleGetPastEvent(request: Request) {
   if (select.error) {
     return corsJSON({ error: select.error }, { status: 500 });
   }
-  return corsJSON(select[0]);
+  return corsJSON(select.data[0]);
 }
