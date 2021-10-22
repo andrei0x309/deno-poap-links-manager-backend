@@ -56,9 +56,11 @@ serve({
   "/edit-past-event": handleEditPastEvent, // RequireAuth
   "/get-claim-pass": handleGetClaimPass, // RequireAuth
   "/set-claim-pass": handleSetClaimPass, // RequireAuth
+  "/get-past-event": handleGetPastEvent, // RequireAuth
   "/can-claim-links": handleCanClaimLinks, // NO RequireAuth
   "/request-claim-link": handleClaimLink, // NO RequireAuth
   "/get-past-events": handleGetPastEvents, // NO RequireAuth
+
 });
 
 
@@ -336,9 +338,25 @@ async function handleGetPastEvents(request: Request) {
   const isOptHead = await handleOptHead(request);
   if (isOptHead instanceof Response) return isOptHead;
 
-  let select = await supabase.from("past-events").select('*').order('created_at', { ascending: true });
+  let select = await supabase.from("past-events").select('*').order('created_at', { ascending: false });
   if (select.error) {
     return corsJSON({ error: select.error }, { status: 500 });
   }
   return corsJSON(select);
+}
+
+async function handleGetPastEvent(request: Request) {
+  const isOptHead = await handleOptHead(request);
+  if (isOptHead instanceof Response) return isOptHead;
+  const isReqAuth = await requireAuth(request);
+  if (isReqAuth instanceof Response) return isReqAuth;
+  const data = await request.json();
+  if (!('id' in data)) {
+    return corsJSON({ error: "Missing param id." }, { status: 401 });
+  }
+  let select = await supabase.from("past-events").select('*').eq("id", data.id);
+  if (select.error) {
+    return corsJSON({ error: select.error }, { status: 500 });
+  }
+  return corsJSON(select[0]);
 }
