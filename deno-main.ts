@@ -52,7 +52,7 @@ serve({
   "/get-claim-links": handleGetClaimLinks, // RequireAuth
   "/del-claim-links": handleDelClaimLinks, // RequireAuth
   "/add-past-event": handleAddPastEvent, // RequireAuth
-  "/del-past-event": notImplemented, // RequireAuth
+  "/del-past-event": handleDelPastEvent, // RequireAuth
   "/edit-past-event": handleEditPastEvent, // RequireAuth
   "/get-claim-pass": handleGetClaimPass, // RequireAuth
   "/set-claim-pass": handleSetClaimPass, // RequireAuth
@@ -109,8 +109,6 @@ async function handleAdminLogin(request: Request) {
   return corsJSON({ ok: true, msg: "Success!" });
 }
 
-async function notImplemented(request: Request) { }
-
 async function handleGetClaimPass(request: Request) {
   const isOptHead = await handleOptHead(request);
   if (isOptHead instanceof Response) return isOptHead;
@@ -146,7 +144,6 @@ async function handleSetClaimPass(request: Request) {
   }
   return corsJSON({ msg: "Claim password Set" });
 }
-
 
 async function handleGetClaimLinks(request: Request) {
   const isOptHead = await handleOptHead(request);
@@ -204,6 +201,23 @@ async function handleAddPastEvent(request: Request) {
   }
   return corsJSON({ msg: "Past Event added" });
 }
+
+async function handleDelPastEvent(request: Request) {
+  const isOptHead = await handleOptHead(request);
+  if (isOptHead instanceof Response) return isOptHead;
+  const isReqAuth = await requireAuth(request);
+  if (isReqAuth instanceof Response) return isReqAuth;
+  const data = await request.json();
+  if (!("id" in data)) {
+    return corsJSON({ error: "Missing param id" }, { status: 401 });
+  }
+  const delCmd = await supabase.from("past-events").delete('*').match({ id: data.id });
+  if (delCmd.error) {
+    return corsJSON({ error: delCmd.error }, { status: 500 });
+  }
+  return corsJSON({ msg: `Past-event entitty with id ${data.id} deleted` });
+}
+
 
 async function handleEditPastEvent(request: Request) {
   const isOptHead = await handleOptHead(request);
