@@ -51,6 +51,7 @@ serve({
   "/add-claim-links": handleAddClaimLinks, // RequireAuth
   "/get-claim-links": handleGetClaimLinks, // RequireAuth
   "/del-claim-links": handleDelClaimLinks, // RequireAuth
+  "/get-claim-link": handleGetClaimLink, // RequireAuth
   "/add-past-event": handleAddPastEvent, // RequireAuth
   "/del-past-event": handleDelPastEvent, // RequireAuth
   "/edit-past-event": handleEditPastEvent, // RequireAuth
@@ -155,6 +156,22 @@ async function handleGetClaimLinks(request: Request) {
     return corsJSON({ error: select.error }, { status: 500 });
   }
   return corsJSON(select);
+}
+
+async function handleGetClaimLink(request: Request) {
+  const isOptHead = await handleOptHead(request);
+  if (isOptHead instanceof Response) return isOptHead;
+  const isReqAuth = await requireAuth(request);
+  if (isReqAuth instanceof Response) return isReqAuth;
+  const data = await request.json();
+  if (!('id' in data)) {
+    return corsJSON({ error: "Missing param id." }, { status: 401 });
+  }
+  let select = await supabase.from("claim-links").select('*').eq("id", data.id);
+  if (select.error) {
+    return corsJSON({ error: select.error }, { status: 500 });
+  }
+  return corsJSON(select.data[0]);
 }
 
 async function handleDelClaimLinks(request: Request) {
@@ -291,11 +308,11 @@ async function handleClaimLink(request: Request) {
     return corsJSON({ error: "Claim date string format incorect" }, { status: 401 });
   }
 
-  const dbClaimPassword = (await supabase.from("settings").select("*").eq("settingName", "claim-password")).data[0]
-    .settingValue;
-  if (claimPassword !== dbClaimPassword) {
-    return corsJSON({ error: "Invalid claim password." }, { status: 401 });
-  }
+  //  const dbClaimPassword = (await supabase.from("settings").select("*").eq("settingName", "claim-password")).data[0]
+  //    .settingValue;
+  //  if (claimPassword !== dbClaimPassword) {
+  //    return corsJSON({ error: "Invalid claim password." }, { status: 401 });
+  //  }
 
   const network = "homestead";
   const provider = ethers.getDefaultProvider(network, {
@@ -325,8 +342,19 @@ async function handleClaimLink(request: Request) {
 
   const alreadyClaimed = links.filter((el) => el.by === claimEth);
   if (alreadyClaimed.length) {
-    return corsJSON({ link: alreadyClaimed[0].url, by: alreadyClaimed[0].by, msg: "You already claimed the link here it is if you forgot!" });
+    return corsJSON({ error: "You already claimed this POAP." }, { status: 401 });
   }
+
+  const checkCode = links.filter((el) => String(el.code) === claimPassword);
+  console.log(checkCode);
+  if (!checkCode.length) {
+    return corsJSON({ error: "Code is invalid." }, { status: 401 });
+  }
+
+  if (checkCode[0].by !== "") {
+    return corsJSON({ error: "Code is already used." }, { status: 401 });
+  }
+
   let linkObj = null;
   for (const [index, value] of links.entries()) {
     if (value.claimed === false) {
