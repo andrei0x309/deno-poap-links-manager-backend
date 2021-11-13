@@ -65,6 +65,10 @@ serve({
 });
 
 
+async function logValidAttemptClaim(claim) {
+  await supabase.from("claim-attempts").insert([claim]);
+}
+
 async function requireAuth(request: Request) {
   const authPass = request.headers.get("CUSTOM-AUTH-PSK");
   if (!authPass) {
@@ -290,11 +294,22 @@ async function handleClaimLink(request: Request) {
   const claimDate = data.claimDate;
   const claimPassword = data.claimPassword;
   let claimEth = data.claimEth;
+
+  const logAttemptSchema = {
+    error: "",
+    app_code: claimPassword,
+    poap_link: "",
+    eth: claimEth,
+    attempt_date: claimDate.split("").reverse().join("")
+  };
+  const msgForAttempt = `There was an error trying to automatically claim the POAP. But fear not since the code [ ${claimPassword} ] was valid your attempt was logged and the system will automatically claim the POAP later in [ ${claimEth} ] wallet.`
+
+
   if (!claimDate) {
     return corsJSON({ error: "Claim date string not found." }, { status: 401 });
   }
   if (!claimPassword) {
-    return corsJSON({ error: "Claim password string not found." }, { status: 401 });
+    return corsJSON({ error: "Claim code string not found." }, { status: 401 });
   }
   if (!claimEth) {
     return corsJSON({ error: "Claim ETH or ESN string not found." }, { status: 401 });
@@ -340,19 +355,25 @@ async function handleClaimLink(request: Request) {
 
   const links = getClaimLinks.data[0].links;
 
-  const alreadyClaimed = links.filter((el) => el.by === claimEth);
-  if (alreadyClaimed.length) {
-    return corsJSON({ error: "You already claimed this POAP." }, { status: 401 });
-  }
-
   const checkCode = links.filter((el) => String(el.code) === claimPassword);
   console.log(checkCode);
   if (!checkCode.length) {
     return corsJSON({ error: "Code is invalid." }, { status: 401 });
   }
 
+  const alreadyClaimed = links.filter((el) => el.by === claimEth);
+  if (alreadyClaimed.length) {
+    logAttemptSchema.error = "You already claimed this POAP.";
+    logAttemptSchema.poap_link = alreadyClaimed[0].url;
+    logValidAttemptClaim(logAttemptSchema);
+    return corsJSON({ error: msgForAttempt }, { status: 401 });
+  }
+
   if (checkCode[0].by !== "") {
-    return corsJSON({ error: "Code is already used." }, { status: 401 });
+    logAttemptSchema.error = "Code is already used.";
+    logAttemptSchema.poap_link = checkCode[0].url;
+    logValidAttemptClaim(logAttemptSchema);
+    return corsJSON({ error: msgForAttempt }, { status: 401 });
   }
 
   let linkObj = null;
@@ -367,13 +388,19 @@ async function handleClaimLink(request: Request) {
   const updateLinks = await supabase.from("claim-links").update(getClaimLinks.data).eq("id", getClaimLinks.data[0].id);
 
   if (updateLinks.error) {
-    return corsJSON({ error: "Database error updating the claim links" }, { status: 401 });
+    logAttemptSchema.error = "Database error updating the claim links";
+    logAttemptSchema.poap_link = checkCode[0].url;
+    logValidAttemptClaim(logAttemptSchema);
+    return corsJSON({ error: msgForAttempt }, { status: 401 });
   }
   if (linkObj) {
     return corsJSON({ link: linkObj.url, by: linkObj.by, msg: "Success!" });
   }
 
-  return corsJSON({ error: "Sorry No more links to be claimed" }, { status: 401 });
+  logAttemptSchema.error = "Sorry No more links to be claimed";
+  logAttemptSchema.poap_link = checkCode[0].url;
+  logValidAttemptClaim(logAttemptSchema);
+  return corsJSON({ error: msgForAttempt }, { status: 401 });
 }
 
 async function handleGetPastEvents(request: Request) {
@@ -402,3 +429,4 @@ async function handleGetPastEvent(request: Request) {
   }
   return corsJSON(select.data[0]);
 }
+
