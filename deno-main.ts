@@ -8,6 +8,9 @@ window.LocalStorage = {
 };
 // @ts-expect-error Is Deno, Window is mutable
 window.localStorage = LocalStorage;
+// Hack to prevent error in gotrue lib
+// @ts-expect-error Is Deno, Window is mutable
+window.location = { href: "" };
 
 // @ts-expect-error Valid Deno Import
 import { ethers } from "https://cdn.ethers.io/lib/ethers-5.1.esm.min.js";
