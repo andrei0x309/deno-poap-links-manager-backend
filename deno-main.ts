@@ -64,6 +64,8 @@ serve({
   "/can-claim-links": handleCanClaimLinks, // NO RequireAuth
   "/request-claim-link": handleClaimLink, // NO RequireAuth
   "/get-past-events": handleGetPastEvents, // NO RequireAuth
+  "/get-past-meetings": handleGetPastMeetings, // NO RequireAuth
+  "/get-notes-meeting": handleGetNotesMeeting // NO RequireAuth
 
 });
 
@@ -303,7 +305,7 @@ async function handleClaimLink(request: Request) {
     app_code: claimPassword,
     poap_link: "",
     eth: claimEth,
-    attempt_date: claimDate.split("").reverse().join("")
+    attempt_date: claimDate
   };
   const msgForAttempt = `There was an error trying to automatically claim the POAP. But fear not since the code [ ${claimPassword} ] was valid your attempt was logged and the system will automatically claim the POAP later in [ ${claimEth} ] wallet.`
 
@@ -369,14 +371,14 @@ async function handleClaimLink(request: Request) {
     logAttemptSchema.error = "You already claimed this POAP.";
     logAttemptSchema.poap_link = alreadyClaimed[0].url;
     logValidAttemptClaim(logAttemptSchema);
-    return corsJSON({ error: msgForAttempt }, { status: 401 });
+    return corsJSON({ error: msgForAttempt }, { status: 500 });
   }
 
   if (checkCode[0].by !== "") {
     logAttemptSchema.error = "Code is already used.";
     logAttemptSchema.poap_link = checkCode[0].url;
     logValidAttemptClaim(logAttemptSchema);
-    return corsJSON({ error: msgForAttempt }, { status: 401 });
+    return corsJSON({ error: msgForAttempt }, { status: 500 });
   }
 
   let linkObj = null;
@@ -394,16 +396,19 @@ async function handleClaimLink(request: Request) {
     logAttemptSchema.error = "Database error updating the claim links";
     logAttemptSchema.poap_link = checkCode[0].url;
     logValidAttemptClaim(logAttemptSchema);
-    return corsJSON({ error: msgForAttempt }, { status: 401 });
+    return corsJSON({ error: msgForAttempt }, { status: 500 });
   }
   if (linkObj) {
+    logAttemptSchema.error = "Code maybe not be claimed.";
+    logAttemptSchema.poap_link = checkCode[0].url;
+    logValidAttemptClaim(logAttemptSchema);
     return corsJSON({ link: linkObj.url, by: linkObj.by, msg: "Success!" });
   }
 
   logAttemptSchema.error = "Sorry No more links to be claimed";
   logAttemptSchema.poap_link = checkCode[0].url;
   logValidAttemptClaim(logAttemptSchema);
-  return corsJSON({ error: msgForAttempt }, { status: 401 });
+  return corsJSON({ error: msgForAttempt }, { status: 500 });
 }
 
 async function handleGetPastEvents(request: Request) {
@@ -415,6 +420,36 @@ async function handleGetPastEvents(request: Request) {
     return corsJSON({ error: select.error }, { status: 500 });
   }
   return corsJSON(select);
+}
+
+async function handleGetPastMeetings(request: Request) {
+  const isOptHead = await handleOptHead(request);
+  if (isOptHead instanceof Response) return isOptHead;
+
+  const data = await request.json();
+  let limitRecords = 50;
+  if ('limit' in data && !isNaN(Number(data.limt)) && Number(data.limt) > 0 && Number(data.limt) <= 50) {
+    limitRecords = Number(data.limt)
+  }
+  let select = await supabase.from("meetings-videos").select('*').order('created_at', { ascending: false }).limit(limitRecords);
+  if (select.error) {
+    return corsJSON({ error: select.error }, { status: 500 });
+  }
+  return corsJSON(select);
+}
+
+async function handleGetNotesMeeting(request: Request) {
+  const isOptHead = await handleOptHead(request);
+  if (isOptHead instanceof Response) return isOptHead;
+
+  const data = await request.json();
+  if (!('notesUrl' in data)) {
+    return corsJSON({ error: "No NOTE URL" }, { status: 401 });
+  }
+  if (data.notesUrl.includes('yup.community')) {
+    return corsJSON({ error: "Be nice!" }, { status: 401 });
+  }
+  return fetch(data.notesUrl)
 }
 
 async function handleGetPastEvent(request: Request) {
